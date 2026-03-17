@@ -25,10 +25,6 @@ subroutine start
   !this time to get details of arrays sizes etc
   call input_parser
 
-  if (do_turbulence .and. do_rotation) then
-    stop 'Not yet tested with both rotation and turbulence! :/'
-  endif
-
   if(eoskey.eq.3) then
 #if HAVE_NUC_EOS
      ! Ott EOS routines: read table

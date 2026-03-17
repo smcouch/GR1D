@@ -185,7 +185,8 @@ subroutine initialize_arrays
      v_turbm(:) = 0.0d0
      diff_term_eps(:) = 0.0d0
      diff_term_ye(:) = 0.0d0
-     diff_term_K(:) = 0.0d0        
+     diff_term_K(:) = 0.0d0
+     diff_term_angmom(:) = 0.0d0
      turb_source(:,:) = 0.0d0
      lambda_mlt(:) = 0.0d0
      shear(:) = 0.0d0
@@ -280,4 +281,3 @@ subroutine initialize_arrays
 
 end subroutine initialize_arrays
   
-

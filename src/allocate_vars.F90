@@ -33,6 +33,7 @@ subroutine allocate_vars
      allocate(diff_term_eps(n1))     
      allocate(diff_term_ye(n1))
      allocate(diff_term_K(n1))
+     allocate(diff_term_angmom(n1))
      allocate(turb_source(n1,n_cons))
      allocate(lambda_mlt(n1))
      allocate(shear(n1))

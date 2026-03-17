@@ -158,6 +158,9 @@ subroutine flux_differences_hlle
         flux(i,3) = flux(i,3) - diff_term_eps(i)
         flux(i,4) = flux(i,4) - diff_term_ye(i)
         flux(i,6) = flux(i,6) - diff_term_K(i)
+        if(do_rotation) then
+           flux(i,5) = flux(i,5) - diff_term_angmom(i)
+        endif
      endif
   enddo
 
