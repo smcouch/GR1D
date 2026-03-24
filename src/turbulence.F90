@@ -3,22 +3,30 @@ subroutine turb_diff_terms
 
    use GR1D_module, only: x1, eps, ye, v_turb, alpha_turb, &
      alpha_turb_K, alpha_turb_e, alpha_turb_ye, alpha_turb_angmom, &
-     dphidr, rhop, pressp, v_turbp, qp, q, diff_term_eps, &
+     dphidr, rhop, pressp, v_turbp, qp, diff_term_eps, &
      diff_term_ye, diff_term_K, diff_term_angmom, n1, ghosts1, &
-     do_rotation
+     do_rotation, GR, vphi, vphi1
    use Grad_module
    implicit none
 
    integer:: i
    real*8 :: Lambda_mixp
    real*8 :: D_turb_eps, D_turb_ye, D_turb_K, D_turb_angmom
-   real*8 :: eps_grad(n1), ye_grad(n1), v2_turb_grad(n1), q5_grad(n1)
+   real*8 :: eps_grad(n1), ye_grad(n1), v2_turb_grad(n1), omega_grad(n1)
+   real*8 :: omega_loc(n1)
 
    eps_grad = Gradient_int(eps,x1)
    ye_grad = Gradient_int(ye,x1)
    v2_turb_grad = Gradient_int(v_turb**2,x1)
-   q5_grad(:) = 0.0d0
-   if (do_rotation) q5_grad = Gradient_int(q(:,5),x1)
+   omega_grad(:) = 0.0d0
+   if (do_rotation) then
+      if (GR) then
+         omega_loc = vphi/x1
+      else
+         omega_loc = vphi1/x1
+      endif
+      omega_grad = Gradient_int(omega_loc,x1)
+   endif
    
    !Implement the calculation of the diffusion terms
    do i=ghosts1+1,n1-ghosts1
@@ -35,7 +43,7 @@ subroutine turb_diff_terms
       diff_term_ye(i) = qp(i,1) * D_turb_ye * ye_grad(i)
       diff_term_K(i) = qp(i,1) * D_turb_K * v2_turb_grad(i)
       if (do_rotation) then
-         diff_term_angmom(i) = D_turb_angmom * q5_grad(i)
+         diff_term_angmom(i) = qp(i,1) * D_turb_angmom * omega_grad(i)
       endif
    enddo 
 
