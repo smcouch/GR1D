@@ -70,10 +70,10 @@ subroutine output_all(modeflag)
         
         if(GR) then
            filename = trim(adjustl(outdir))//"/vphi.xg"
-           call output_single(vphi,filename)
+           call output_single(vphi*clite,filename)
         else
            filename = trim(adjustl(outdir))//"/vphi1.xg"
-           call output_single(vphi1,filename)
+           call output_single(vphi1*clite,filename)
         endif
      endif
      
