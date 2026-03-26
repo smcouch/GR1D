@@ -109,7 +109,7 @@ subroutine Brunt_Vaisala(dts)
 
    use GR1D_module, only: x1, v_turb, omega2_BV, GR, &
      alpha_turb, Lambda_MLT, v1, v, dphidr, press, rho, eps, cs2, &
-     n1, ghosts1, alp, X, ishock, length_gf
+     n1, ghosts1, alp, X, ishock, length_gf, do_rotation, vphi, vphi1
    use Grad_module
    implicit none
    
@@ -118,6 +118,7 @@ subroutine Brunt_Vaisala(dts)
    real*8 dts
    real*8 Lambda_mix, H_P, v_turb_seed, h
    real*8 rho_grad(n1), press_grad(n1), v_grad(n1)
+   real*8 omega_loc(n1), omega_grad(n1), kappa2_rot(n1)
    real*8 lnrho_grad(n1), lnP_grad(n1)
    
    if (GR) then
@@ -132,6 +133,18 @@ subroutine Brunt_Vaisala(dts)
        !lnrho_grad = Gradient_3pts(log(rho),x1)
        !lnP_grad = Gradient_3pts(log(press),x1)
    endif
+
+   omega_grad(:) = 0.0d0
+   kappa2_rot(:) = 0.0d0
+   if (do_rotation) then
+      if (GR) then
+         omega_loc = vphi/x1
+      else
+         omega_loc = vphi1/x1
+      endif
+      omega_grad = Gradient_3pts(omega_loc,x1)
+      kappa2_rot = 4.0d0*omega_loc**2 + 2.0d0*x1*omega_loc*omega_grad
+   endif
    
    do i=ghosts1+1,n1-ghosts1
        
@@ -145,6 +158,8 @@ subroutine Brunt_Vaisala(dts)
           omega2_BV(i) = (dphidr(i) - v(i)* v_grad(i))/rho(i)* &
                 (rho_grad(i) - press_grad(i)/cs2(i))
       endif
+
+      if (do_rotation) omega2_BV(i) = omega2_BV(i) - kappa2_rot(i)
       
       H_P = press(i)/(rho(i)*dphidr(i))
       Lambda_mix = alpha_turb * H_P
