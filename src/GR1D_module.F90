@@ -160,11 +160,13 @@ module GR1D_module
   real*8,allocatable,save :: diff_term_angmom(:)
     
   real*8,allocatable,save :: turb_source(:,:)
-  real*8,allocatable,save :: lambda_mlt(:), shear(:), diss(:), buoy(:)
+  real*8,allocatable,save :: lambda_mlt(:), shear(:), diss(:), buoy(:), &
+       rot_shear(:)
   real*8,parameter :: alpha_turb_e = 1.0/6.0
   real*8,parameter :: alpha_turb_ye = 1.0/6.0
   real*8,parameter :: alpha_turb_K = 1.0/6.0
   real*8,parameter :: alpha_turb_angmom = 1.0/6.0
+  real*8,parameter :: alpha_turb_rot = 1.0/6.0
   real*8,parameter :: alpha_turb_nu = 1.0/6.0
 
   !testcases variables

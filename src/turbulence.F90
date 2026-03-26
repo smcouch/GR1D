@@ -53,15 +53,29 @@ subroutine turbulence_sources
 
    use GR1D_module, only: x1, GR, v_turb, omega2_BV, v1, &
      alpha_turb, dphidr, press, rho, n1, ghosts1, turb_source, &
-     alp, X, shear, diss, buoy, sqrt_gamma, ishock
+     alp, X, shear, diss, buoy, rot_shear, sqrt_gamma, ishock, &
+     do_rotation, vphi, vphi1, alpha_turb_rot
    use Grad_module
    implicit none
 
    integer i
    real*8 Lambda_mix
-   real*8 v_grad(n1)
+   real*8 v_grad(n1), omega_grad(n1), domega_dlnr(n1), omega_loc(n1)
    
    v_grad = Gradient_5pts(v1,x1)
+   omega_grad(:) = 0.0d0
+   domega_dlnr(:) = 0.0d0
+   rot_shear(:) = 0.0d0
+   if (do_rotation) then
+      if (GR) then
+         omega_loc = vphi/x1
+      else
+         omega_loc = vphi1/x1
+      endif
+      omega_grad = Gradient_3pts(omega_loc,x1)
+      domega_dlnr = x1 * omega_grad
+      domega_dlnr(ghosts1+1) = 0.0d0
+   endif
    
    !Implement the calculation of the diffusion terms
    do i=ghosts1+1,n1-ghosts1
@@ -71,9 +85,14 @@ subroutine turbulence_sources
       shear(i) = - v_turb(i)**2 * v_grad(i)
       diss(i) = v_turb(i)**3 / Lambda_mix
       buoy(i) = v_turb(i) * omega2_BV(i) * Lambda_mix
+      if (do_rotation) then
+         rot_shear(i) = alpha_turb_rot * v_turb(i) * Lambda_mix * &
+              domega_dlnr(i)**2
+      endif
 
       turb_source(i,3) = rho(i) * diss(i)
-      turb_source(i,6) = rho(i)* (shear(i) + buoy(i) - diss(i))
+      turb_source(i,6) = rho(i)* (shear(i) + buoy(i) + rot_shear(i) - &
+           diss(i))
 
       if (GR) then
           turb_source(i,3) = alp(i)*X(i)*turb_source(i,3)

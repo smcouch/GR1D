@@ -192,6 +192,7 @@ subroutine initialize_arrays
      shear(:) = 0.0d0
      diss(:) = 0.0d0
      buoy(:) = 0.0d0
+     rot_shear(:) = 0.0d0
   endif
   
   v(:) = 0.0d0

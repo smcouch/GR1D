@@ -88,6 +88,10 @@ subroutine output_all(modeflag)
         if (.not. small_output) call output_single(buoy*time_gf/eps_gf,filename)     
         filename = trim(adjustl(outdir))//"/shear_turb_eps.xg"
         if (.not. small_output) call output_single(shear*time_gf/eps_gf,filename)     
+        if (do_rotation) then
+           filename = trim(adjustl(outdir))//"/rot_shear_turb_eps.xg"
+           if (.not. small_output) call output_single(rot_shear*time_gf/eps_gf,filename)
+        endif
         filename = trim(adjustl(outdir))//"/Lambda_MLT.xg"
         if (.not. small_output) call output_single(lambda_mlt/length_gf,filename)     
      endif
