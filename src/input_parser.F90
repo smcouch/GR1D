@@ -265,6 +265,11 @@ subroutine input_parser
      if (do_turbulence) then
   	     if (geometry.ne.2) stop "Turbulence in 1D?"
         call get_double_parameter('alpha_turb',alpha_turb)
+        call get_double_parameter('alpha_turb_rot',alpha_turb_rot)
+        call get_double_parameter('alpha_turb_e',alpha_turb_e)
+        call get_double_parameter('alpha_turb_ye',alpha_turb_ye)
+        call get_double_parameter('alpha_turb_K',alpha_turb_K)
+        call get_double_parameter('alpha_turb_nu',alpha_turb_nu)
         call get_double_parameter('tpb_for_turbulence',tpb_for_turbulence)
      endif
   endif

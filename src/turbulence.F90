@@ -2,7 +2,7 @@
 subroutine turb_diff_terms
 
    use GR1D_module, only: x1, eps, ye, v_turb, alpha_turb, &
-     alpha_turb_K, alpha_turb_e, alpha_turb_ye, alpha_turb_angmom, &
+     alpha_turb_K, alpha_turb_e, alpha_turb_ye, alpha_turb_rot, &
      dphidr, rhop, pressp, v_turbp, qp, diff_term_eps, &
      diff_term_ye, diff_term_K, diff_term_angmom, n1, ghosts1, &
      do_rotation, GR, vphi, vphi1
@@ -37,7 +37,7 @@ subroutine turb_diff_terms
       D_turb_eps = alpha_turb_e * v_turbp(i) * Lambda_mixp
       D_turb_ye = alpha_turb_ye * v_turbp(i) * Lambda_mixp
       D_turb_K = alpha_turb_K * v_turbp(i) * Lambda_mixp
-      D_turb_angmom = alpha_turb_angmom * v_turbp(i) * Lambda_mixp
+      D_turb_angmom = alpha_turb_rot * v_turbp(i) * Lambda_mixp
    
       diff_term_eps(i) = qp(i,1) * D_turb_eps * eps_grad(i)
       diff_term_ye(i) = qp(i,1) * D_turb_ye * ye_grad(i)
