@@ -14,7 +14,7 @@ subroutine press_sources
         presssource(i,2) = 2.0d0*alp(i)*press(i)/X(i)/x1(i)
         if(do_rotation) then
            presssource(i,2) = presssource(i,2) &
-                + alp(i) * &
+                + twothirds * alp(i) * &
                 (rho(i) + rho(i)*eps(i) + press(i)) &
                 * W(i)*W(i)*vphi(i)**2 / (X(i) * x1(i))
 
@@ -33,7 +33,7 @@ subroutine press_sources
      if(do_rotation) then
         do i = 2,n1
            presssource(i,2) = presssource(i,2) &
-                + rho(i)*vphi1(i)**2 / x1(i) * sqrt_gamma(i)
+                + twothirds * rho(i) * vphi1(i)**2 / x1(i) * sqrt_gamma(i)
         enddo
      endif
 
