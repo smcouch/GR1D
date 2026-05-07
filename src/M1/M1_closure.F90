@@ -163,18 +163,18 @@ subroutine M1_closure
                     
                  endif
 
-                 if (M1closure.eq.'ME') then
+                !  if (M1closure.eq.'ME') then
                     ff3 = ff2*sqrt(ff2)
                     ff4 = ff2*ff2
                     chi = 1.0d0/3.0d0+(3.0d0*ff2-ff3+3.0d0*ff4)*0.1333333333333333333d0
-                 else if (M1closure.eq.'LP') then
-                    if (ff2.gt.1.0d0) then
-                       ff2 = 1.0d0
-                    endif
-                    chi = (3.0d0+4.0d0*ff2)/(5.0d0+2.0d0*sqrt(4.0d0-3.0d0*ff2))
-                 else
-                    stop "define closure"
-                 endif
+                !  else if (M1closure.eq.'LP') then
+                !     if (ff2.gt.1.0d0) then
+                !        ff2 = 1.0d0
+                !     endif
+                !     chi = (3.0d0+4.0d0*ff2)/(5.0d0+2.0d0*sqrt(4.0d0-3.0d0*ff2))
+                !  else
+                !     stop "define closure"
+                !  endif
           
                  !have a(J,H^2) = J/H^2 *(3*chi-1)/2
                  !for Kthin, take chi=1
