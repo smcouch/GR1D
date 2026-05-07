@@ -1,0 +1,52 @@
+# macOS and editor noise
+.DS_Store
+._*
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Local machine build configuration
+/make.inc
+
+# GR1D build products
+/GR1D
+/GR1D.dSYM/
+*.dSYM/
+*.o
+*.mod
+*.smod
+*.a
+
+# C/C++ and CMake helper build products
+*.so
+*.dylib
+*.dll
+*.exe
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Python/cache artifacts from tools
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime inputs, outputs, and local data
+/parameters
+/output/
+/outputs/
+/timers.dat
+/done
+/explosion
+*.out
+/test/output/
+/test/*.h5
+*.xg
+
+# Generated VisIt reader build tree
+/tools/visit-reader/build/
