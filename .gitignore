@@ -50,3 +50,6 @@ __pycache__/
 
 # Generated VisIt reader build tree
 /tools/visit-reader/build/
+
+traces/
+test/
