@@ -1,7 +1,7 @@
 !-*-f90-*-
 subroutine turb_diff_terms
 
-   use GR1D_module, only: x1, eps, ye, v_turb, alpha_turb, &
+   use GR1D_module, only: x1, x1i, eps, ye, v_turb, alpha_turb, &
      alpha_turb_K, alpha_turb_e, alpha_turb_ye, alpha_turb_rot, &
      dphidr, rhop, pressp, v_turbp, qp, diff_term_eps, &
      diff_term_ye, diff_term_K, diff_term_angmom, n1, ghosts1, &
@@ -43,7 +43,7 @@ subroutine turb_diff_terms
       diff_term_ye(i) = qp(i,1) * D_turb_ye * ye_grad(i)
       diff_term_K(i) = qp(i,1) * D_turb_K * v2_turb_grad(i)
       if (do_rotation) then
-         diff_term_angmom(i) = qp(i,1) * D_turb_angmom * omega_grad(i)
+         diff_term_angmom(i) = qp(i,1) * D_turb_angmom * x1i(i+1)**2 * omega_grad(i)
       endif
    enddo 
 
