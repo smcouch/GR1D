@@ -186,6 +186,21 @@ subroutine input_parser
         stop "unknown value for energycoupling_evolution_exp"
      endif
 
+     if (parameter_exists('M1_source_dt_limiter')) then
+        call get_integer_parameter('M1_source_dt_limiter',tempint)
+        M1_source_dt_limiter = tempint.ne.0
+     endif
+     if (parameter_exists('M1_source_cfl_linear')) &
+          call get_double_parameter('M1_source_cfl_linear',M1_source_cfl_linear)
+     if (parameter_exists('M1_source_cfl_fraction')) &
+          call get_double_parameter('M1_source_cfl_fraction',M1_source_cfl_fraction)
+     if (parameter_exists('M1_source_cfl_positive')) &
+          call get_double_parameter('M1_source_cfl_positive',M1_source_cfl_positive)
+     if (parameter_exists('M1_source_dt_floor')) &
+          call get_double_parameter('M1_source_dt_floor',M1_source_dt_floor)
+     if (parameter_exists('M1_source_dt_verbose')) &
+          call get_integer_parameter('M1_source_dt_verbose',M1_source_dt_verbose)
+
      call get_string_parameter('M1closure',M1closure)     
      call get_string_parameter('opacity_table',opacity_table)
      call get_integer_parameter('testcase',M1_testcase_number)
@@ -281,6 +296,42 @@ subroutine input_parser
   endif
 
 contains
+
+ logical function parameter_exists(parname)
+
+   implicit none
+   character*(*) parname
+   character*(200) line_string
+   character*(200) temp_string
+   integer i,j,l
+
+   parameter_exists = .false.
+   open(unit=28,file=input_file,status='unknown')
+
+10 continue
+   read(28,'(a)',end=19) line_string
+
+   i = index(line_string,'=')
+   j = index(line_string,'#')
+
+   if (i.eq.0.or.j.eq.1) goto 10
+   if (j.gt.0.and.j.lt.i) goto 10
+
+   temp_string=trim(adjustl(line_string(1:i-1)))
+   l=len(parname)
+   if(l.le.len_trim(temp_string)) then
+      if(parname.eq.temp_string(1:l)) then
+         parameter_exists = .true.
+         close(28)
+         return
+      endif
+   endif
+   goto 10
+
+19 continue
+   close(28)
+
+ end function parameter_exists
 
  subroutine get_string_parameter(parname,par)
 

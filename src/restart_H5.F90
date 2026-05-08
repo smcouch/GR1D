@@ -620,6 +620,16 @@ subroutine restart_output_h5
      call h5sclose_f(dspace_id, error)
      cerror = cerror + error
 
+     rank=1
+     dims1(1) = n1
+     call h5screate_simple_f(rank, dims1, dspace_id, error)
+     call h5dcreate_f(file_id, "M1_source_dvdt", H5T_NATIVE_DOUBLE, dspace_id,&
+          & dset_id, error)
+     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, M1_source_dvdt, dims1, error)
+     call h5dclose_f(dset_id, error)
+     call h5sclose_f(dspace_id, error)
+     cerror = cerror + error
+
   endif
 
   !save M1 stuff, 4D arrays
@@ -718,6 +728,7 @@ subroutine restart_init_h5
   integer(HID_T) file_id,dset_id,dspace_id,aspace_id,attr_id
   integer(HID_T) atype_id,i,j
   integer(SIZE_T) attrlen
+  logical hdf_exists
   
   integer(HSIZE_T) dims1(1), dims2(2), dims3(3), dims4(4)
 
@@ -1132,6 +1143,19 @@ subroutine restart_init_h5
      call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, M1_matter_source, dims2, error)
      call h5dclose_f(dset_id,error) 
      cerror = cerror + error
+
+     rank=1
+     dims1(1) = n1
+     call h5lexists_f(file_id, "M1_source_dvdt", hdf_exists, error)
+     cerror = cerror + error
+     if (hdf_exists) then
+        call h5dopen_f(file_id, "M1_source_dvdt", dset_id, error)
+        call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, M1_source_dvdt, dims1, error)
+        call h5dclose_f(dset_id,error)
+        cerror = cerror + error
+     else
+        M1_source_dvdt(:) = 0.0d0
+     endif
 
   endif
 

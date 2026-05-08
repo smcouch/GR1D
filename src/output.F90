@@ -379,6 +379,23 @@ subroutine output_all(modeflag)
      endif
      
   else if(modeflag.eq.2) then
+
+     if (do_M1) then
+        filename = trim(adjustl(outdir))//"/dt_m1_source.dat"
+        call output_scalar(dt_m1_source/time_gf,filename)
+        filename = trim(adjustl(outdir))//"/dt_m1_ies.dat"
+        call output_scalar(dt_m1_ies/time_gf,filename)
+        filename = trim(adjustl(outdir))//"/dt_m1_energycoupling.dat"
+        call output_scalar(dt_m1_energycoupling/time_gf,filename)
+        filename = trim(adjustl(outdir))//"/dt_m1_source_limiter.dat"
+        scalars(1:nscalars0) = 0.0d0
+        nscalars = 4
+        scalars(1) = real(M1_source_limiter_kind,8)
+        scalars(2) = real(M1_source_limiter_zone,8)
+        scalars(3) = real(M1_source_limiter_species,8)
+        scalars(4) = real(M1_source_limiter_group,8)
+        call output_many_scalars(scalars,nscalars0,nscalars,filename)
+     endif
      
      if (initial_data.eq.'Collapse') then
         !Shock radius

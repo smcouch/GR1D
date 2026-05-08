@@ -42,6 +42,7 @@ SOURCES=GR1D_module.F90 \
 	M1/M1_reconstruct.F90 \
 	M1/M1_closure.F90 \
 	M1/M1_explicitterms.F90 \
+	M1/M1_source_timestep.F90 \
 	M1/M1_implicitstep.F90 \
 	M1/M1_conservativeupdate.F90 \
 	M1/M1_control.F90 \

@@ -193,6 +193,20 @@ module GR1D_module
   logical :: include_energycoupling_exp
   logical :: include_energycoupling_imp
 
+  logical :: M1_source_dt_limiter = .true.
+  integer :: M1_source_dt_verbose = 0
+  real*8 :: M1_source_cfl_linear = 0.25d0
+  real*8 :: M1_source_cfl_fraction = 0.10d0
+  real*8 :: M1_source_cfl_positive = 0.50d0
+  real*8 :: M1_source_dt_floor = 0.0d0
+  real*8 :: dt_m1_source = 1.0d99
+  real*8 :: dt_m1_ies = 1.0d99
+  real*8 :: dt_m1_energycoupling = 1.0d99
+  integer :: M1_source_limiter_kind = 0
+  integer :: M1_source_limiter_zone = 0
+  integer :: M1_source_limiter_species = 0
+  integer :: M1_source_limiter_group = 0
+
   character*80 :: M1closure
   integer :: M1_testcase_number
   real*8 :: total_energy_radiated
@@ -359,6 +373,7 @@ module GR1D_module
   !source term
   !from epannihil for
   !matter
+  real*8,allocatable,save :: M1_source_dvdt(:)
   real*8,allocatable,save :: M1_matter_source(:,:) !source terms
   !for matter
   !interaction

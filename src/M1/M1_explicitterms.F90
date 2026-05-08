@@ -512,6 +512,7 @@ subroutine M1_explicitterms(dts,implicit_factor)
            endif
 
         endif
+        M1_source_dvdt(k) = dvdt(k)
 
         if (v_order.eq.-1) then
            if (GR) then
