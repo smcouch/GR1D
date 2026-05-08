@@ -260,6 +260,7 @@ subroutine initialize_arrays
   M1_hydro_source(:,:) = 0.0d0
   M1_moment_to_distro(:) = 0.0d0
   M1_moment_to_distro_inverse(:) = 0.0d0
+  M1_blackbody_emissivity_factor(:) = 0.0d0
 
   nuchem(:) = 0.0d0
   elechem(:) = 0.0d0
@@ -289,6 +290,7 @@ subroutine initialize_arrays
   M1_hydro_source(:,:) = 0.0d0
   M1_moment_to_distro(:) = 0.0d0
   M1_moment_to_distro_inverse(:) = 0.0d0
+  M1_blackbody_emissivity_factor(:) = 0.0d0
 
   sqrt_gamma(:) = 0.0d0
   

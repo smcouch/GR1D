@@ -8,7 +8,8 @@ subroutine M1_init
        temp_mev_to_kelvin,number_species,volume,pi,M1_moment_to_distro,clite, &
        hbarc_mevcm,M1_testcase_number,v_order,include_nes_kernels, &
        M1_moment_to_distro_inverse,nulib_kernel_gf,number_species_to_evolve, &
-       include_epannihil_kernels,M1_extractradii,M1_iextractradii
+       include_epannihil_kernels,M1_extractradii,M1_iextractradii, &
+       M1_blackbody_emissivity_factor
   use nulibtable
 
   implicit none
@@ -77,6 +78,10 @@ subroutine M1_init
        (clite*nulib_emissivity_gf/nulib_opacity_gf * &
        nulibtable_ewidths(:)*mev_to_erg*(nulibtable_energies(:)/nulib_energy_gf)**3)
   M1_moment_to_distro_inverse(:) = 1.0d0/M1_moment_to_distro(:)
+  M1_blackbody_emissivity_factor(:) = clite * &
+       (nulibtable_energies(:)/nulib_energy_gf)**3 * &
+       (mev_to_erg/(2.0d0*pi*hbarc_mevcm)**3) * &
+       (nulibtable_ewidths(:)/nulib_opacity_gf) * nulib_emissivity_gf
 
   if (M1_imaxradii.gt.n1-ghosts1) stop "M1_init: Your extraction radii is too big"
 

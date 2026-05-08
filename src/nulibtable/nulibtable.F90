@@ -237,6 +237,116 @@ subroutine nulibtable_range_species_range_energy(xrho,xtemp,xye,eas,eas_n1,eas_n
 
 end subroutine nulibtable_range_species_range_energy
 
+subroutine nulibtable_single_species_range_energy_abs_scat(xrho,xtemp,xye, &
+     lns,opac,opac_n1,opac_n2)
+
+  use nulibtable
+  implicit none
+
+  real*8, intent(in) :: xrho, xtemp, xye
+  real*8 :: xlrho, xltemp
+  integer, intent(in) :: lns
+  integer, intent(in) :: opac_n1,opac_n2
+  real*8, intent(out) :: opac(opac_n1,opac_n2)
+  real*8 :: xopac(opac_n1)
+  integer :: startindex,endindex
+
+  if(size(opac,1).ne.nulibtable_number_groups) then
+     stop "nulibtable_single_species_range_energy_abs_scat: supplied array dimensions (1) is not commensurate with table"
+  endif
+  if(size(opac,2).ne.2) then
+     stop "nulibtable_single_species_range_energy_abs_scat: supplied array dimensions (2) is not commensurate with table"
+  endif
+
+  xlrho = log10(xrho)
+  xltemp = log10(xtemp)
+
+  if (xlrho.lt.nulibtable_logrho_min) stop "density below nulib table minimum rho"
+  if (xlrho.gt.nulibtable_logrho_max) stop "density above nulib table maximum rho"
+  if (xltemp.lt.nulibtable_logtemp_min) stop "temperature below nulib table minimum temp"
+  if (xltemp.gt.nulibtable_logtemp_max) stop "temperature above nulib table maximum temp"
+  if (xye.lt.nulibtable_ye_min) stop "ye below nulib table minimum ye"
+  if (xye.gt.nulibtable_ye_max) stop "ye above nulib table maximum ye"
+
+  startindex = (lns-1)*nulibtable_number_groups+1
+  endindex = startindex + nulibtable_number_groups - 1
+
+  xopac = 0.0d0
+  call intp3d_many_mod(xlrho,xltemp,xye,xopac, &
+       nulibtable_absopacity(:,:,:,startindex:endindex),nulibtable_nrho, &
+       nulibtable_ntemp,nulibtable_nye,opac_n1,nulibtable_logrho, &
+       nulibtable_logtemp,nulibtable_ye)
+  opac(:,1) = 10.0d0**xopac(:)
+
+  xopac = 0.0d0
+  call intp3d_many_mod(xlrho,xltemp,xye,xopac, &
+       nulibtable_scatopacity(:,:,:,startindex:endindex),nulibtable_nrho, &
+       nulibtable_ntemp,nulibtable_nye,opac_n1,nulibtable_logrho, &
+       nulibtable_logtemp,nulibtable_ye)
+  opac(:,2) = 10.0d0**xopac(:)
+
+end subroutine nulibtable_single_species_range_energy_abs_scat
+
+subroutine nulibtable_range_species_range_energy_abs_scat(xrho,xtemp,xye, &
+     opac,opac_n1,opac_n2,opac_n3)
+
+  use nulibtable
+  implicit none
+
+  real*8, intent(in) :: xrho, xtemp, xye
+  real*8 :: xlrho, xltemp
+  integer, intent(in) :: opac_n1,opac_n2,opac_n3
+  real*8, intent(out) :: opac(opac_n1,opac_n2,opac_n3)
+  integer :: ins,ing
+  real*8 :: xopac(opac_n1*opac_n2)
+  integer :: index
+
+  if(size(opac,1).ne.nulibtable_number_species) then
+     stop "nulibtable_range_species_range_energy_abs_scat: supplied array dimensions (1) is not commensurate with table"
+  endif
+  if(size(opac,2).ne.nulibtable_number_groups) then
+     stop "nulibtable_range_species_range_energy_abs_scat: supplied array dimensions (2) is not commensurate with table"
+  endif
+  if(size(opac,3).ne.2) then
+     stop "nulibtable_range_species_range_energy_abs_scat: supplied array dimensions (3) is not commensurate with table"
+  endif
+
+  xlrho = log10(xrho)
+  xltemp = log10(xtemp)
+
+  if (xlrho.lt.nulibtable_logrho_min) stop "density below nulib table minimum rho"
+  if (xlrho.gt.nulibtable_logrho_max) stop "density above nulib table maximum rho"
+  if (xltemp.lt.nulibtable_logtemp_min) stop "temperature below nulib table minimum temp"
+  if (xltemp.gt.nulibtable_logtemp_max) stop "temperature above nulib table maximum temp"
+  if (xye.lt.nulibtable_ye_min) stop "ye below nulib table minimum ye"
+  if (xye.gt.nulibtable_ye_max) stop "ye above nulib table maximum ye"
+
+  xopac = 0.0d0
+  call intp3d_many_mod(xlrho,xltemp,xye,xopac,nulibtable_absopacity, &
+       nulibtable_nrho,nulibtable_ntemp,nulibtable_nye,opac_n1*opac_n2, &
+       nulibtable_logrho,nulibtable_logtemp,nulibtable_ye)
+
+  do ins=1,nulibtable_number_species
+     do ing=1,nulibtable_number_groups
+        index = (ins-1)*nulibtable_number_groups + (ing-1) + 1
+        opac(ins,ing,1) = 10.0d0**xopac(index)
+     enddo
+  enddo
+
+  xopac = 0.0d0
+  call intp3d_many_mod(xlrho,xltemp,xye,xopac,nulibtable_scatopacity, &
+       nulibtable_nrho,nulibtable_ntemp,nulibtable_nye,opac_n1*opac_n2, &
+       nulibtable_logrho,nulibtable_logtemp,nulibtable_ye)
+
+  do ins=1,nulibtable_number_species
+     do ing=1,nulibtable_number_groups
+        index = (ins-1)*nulibtable_number_groups + (ing-1) + 1
+        opac(ins,ing,2) = 10.0d0**xopac(index)
+     enddo
+  enddo
+
+end subroutine nulibtable_range_species_range_energy_abs_scat
+
 !this takes temp,eta, and return phi0/1 over energy (both in and out) and species range
 subroutine nulibtable_inelastic_range_species_range_energy2(xtemp,xeta, &
      eas,eas_n1,eas_n2,eas_n3,eas_n4)
@@ -252,6 +362,7 @@ subroutine nulibtable_inelastic_range_species_range_energy2(xtemp,xeta, &
   real*8 :: xeas(eas_n1*eas_n2*(eas_n2+1)/2)
   integer :: index
   real*8 :: energy_conversion = 1.60217733d-6*5.59424238d-55
+  real*8 :: detailed_balance(eas_n2,eas_n2)
 
 
   if(size(eas,1).ne.nulibtable_number_species) then
@@ -275,6 +386,15 @@ subroutine nulibtable_inelastic_range_species_range_energy2(xtemp,xeta, &
   if (xleta.lt.nulibtable_logIeta_min) stop "eta below nulib inelastic table minimum eta"
   if (xleta.gt.nulibtable_logIeta_max) stop "eta above nulib inelastic table maximum eta"
 
+  detailed_balance = 0.0d0
+  do ing_in=1,nulibtable_number_groups
+     do ing_out=ing_in+1,nulibtable_number_groups
+        detailed_balance(ing_in,ing_out) = &
+             exp(-(nulibtable_energies(ing_out)-nulibtable_energies(ing_in))/ &
+             (xtemp*energy_conversion))
+     enddo
+  enddo
+
   xeas = 0.0d0
   call intp2d_many_mod(xltemp,xleta,xeas,nulibtable_Itable_Phi0,nulibtable_nItemp, &
        nulibtable_nIeta,eas_n1*eas_n2*(eas_n2+1)/2,nulibtable_logItemp, &
@@ -291,8 +411,8 @@ subroutine nulibtable_inelastic_range_species_range_energy2(xtemp,xeta, &
      do ing_in=1,nulibtable_number_groups
         do ing_out=ing_in+1,nulibtable_number_groups
            eas(ins,ing_in,ing_out,1) =  &
-                exp(-(nulibtable_energies(ing_out)-nulibtable_energies(ing_in))/ &
-                (xtemp*energy_conversion))*eas(ins,ing_out,ing_in,1) !cernohorsky 94
+                detailed_balance(ing_in,ing_out)* &
+                eas(ins,ing_out,ing_in,1) !cernohorsky 94
         enddo
      enddo
   enddo
@@ -314,8 +434,8 @@ subroutine nulibtable_inelastic_range_species_range_energy2(xtemp,xeta, &
      do ing_in=1,nulibtable_number_groups
         do ing_out=ing_in+1,nulibtable_number_groups
            eas(ins,ing_in,ing_out,2) =  &
-                exp(-(nulibtable_energies(ing_out)-nulibtable_energies(ing_in))/ &
-                (xtemp*energy_conversion))*eas(ins,ing_out,ing_in,2) !cernohorsky 94
+                detailed_balance(ing_in,ing_out)* &
+                eas(ins,ing_out,ing_in,2) !cernohorsky 94
         enddo
      enddo
   enddo  
@@ -339,6 +459,7 @@ subroutine nulibtable_inelastic_single_species_range_energy2(xtemp,xeta, &
   real*8 :: xeas(eas_n1*(eas_n1+1)/2)
   integer :: index
   real*8 :: energy_conversion = 1.60217733d-6*5.59424238d-55
+  real*8 :: detailed_balance(eas_n1,eas_n1)
   integer :: startindex,endindex
 
   if(size(eas,1).ne.nulibtable_number_groups) then
@@ -359,6 +480,15 @@ subroutine nulibtable_inelastic_single_species_range_energy2(xtemp,xeta, &
   if (xleta.lt.nulibtable_logIeta_min) stop "eta below nulib inelastic table minimum eta"
   if (xleta.gt.nulibtable_logIeta_max) stop "eta above nulib inelastic table maximum eta"
 
+  detailed_balance = 0.0d0
+  do ing_in=1,nulibtable_number_groups
+     do ing_out=ing_in+1,nulibtable_number_groups
+        detailed_balance(ing_in,ing_out) = &
+             exp(-(nulibtable_energies(ing_out)-nulibtable_energies(ing_in))/ &
+             (xtemp*energy_conversion))
+     enddo
+  enddo
+
   startindex = (lns-1)*nulibtable_number_groups*(nulibtable_number_groups+1)/2+1
   endindex = startindex + nulibtable_number_groups*(nulibtable_number_groups+1)/2 - 1
 
@@ -377,8 +507,8 @@ subroutine nulibtable_inelastic_single_species_range_energy2(xtemp,xeta, &
   do ing_in=1,nulibtable_number_groups
      do ing_out=ing_in+1,nulibtable_number_groups
         eas(ing_in,ing_out,1) =  &
-             exp(-(nulibtable_energies(ing_out)-nulibtable_energies(ing_in))/ &
-             (xtemp*energy_conversion))*eas(ing_out,ing_in,1) !cernohorsky 94
+             detailed_balance(ing_in,ing_out)* &
+             eas(ing_out,ing_in,1) !cernohorsky 94
      enddo
   enddo
 
@@ -398,8 +528,8 @@ subroutine nulibtable_inelastic_single_species_range_energy2(xtemp,xeta, &
   do ing_in=1,nulibtable_number_groups
      do ing_out=ing_in+1,nulibtable_number_groups
         eas(ing_in,ing_out,2) =  &
-             exp(-(nulibtable_energies(ing_out)-nulibtable_energies(ing_in))/ &
-             (xtemp*energy_conversion))*eas(ing_out,ing_in,2) !cernohorsky 94
+             detailed_balance(ing_in,ing_out)* &
+             eas(ing_out,ing_in,2) !cernohorsky 94
      enddo
   enddo
 
@@ -561,4 +691,3 @@ subroutine nulibtable_epannihil_single_species_range_energy2(xtemp,xeta, &
   enddo
   
 end subroutine nulibtable_epannihil_single_species_range_energy2
-

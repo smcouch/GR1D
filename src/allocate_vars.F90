@@ -127,6 +127,7 @@ subroutine allocate_vars
   allocate(M1_hydro_source(n1,4)) !RK-stage matter source rates from M1
   allocate(M1_moment_to_distro(number_groups))
   allocate(M1_moment_to_distro_inverse(number_groups))
+  allocate(M1_blackbody_emissivity_factor(number_groups))
 
   allocate(sqrt_gamma(n1))
 

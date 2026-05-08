@@ -399,6 +399,7 @@ module GR1D_module
   !source rates for RK-coupled M1
   real*8,allocatable,save :: M1_moment_to_distro(:) !conversion factor
   real*8,allocatable,save :: M1_moment_to_distro_inverse(:) !inverse conversion factor
+  real*8,allocatable,save :: M1_blackbody_emissivity_factor(:)
 
   ! metric stuff
   real*8,allocatable,save :: sqrt_gamma(:)
