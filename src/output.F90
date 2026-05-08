@@ -387,6 +387,8 @@ subroutine output_all(modeflag)
         call output_scalar(dt_m1_ies/time_gf,filename)
         filename = trim(adjustl(outdir))//"/dt_m1_energycoupling.dat"
         call output_scalar(dt_m1_energycoupling/time_gf,filename)
+        filename = trim(adjustl(outdir))//"/dt_m1_realizable.dat"
+        call output_scalar(dt_m1_realizable/time_gf,filename)
         filename = trim(adjustl(outdir))//"/dt_m1_source_limiter.dat"
         scalars(1:nscalars0) = 0.0d0
         nscalars = 4

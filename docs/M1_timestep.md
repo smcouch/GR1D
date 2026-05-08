@@ -26,7 +26,11 @@ M1_source_dt_limiter
 M1_source_cfl_linear
 M1_source_cfl_fraction
 M1_source_cfl_positive
+M1_source_cfl_realizable
 M1_source_dt_floor
+M1_source_realizable_floor_abs
+M1_source_realizable_floor_rel
+M1_source_realizable_margin
 M1_source_dt_verbose
 ```
 
@@ -37,18 +41,26 @@ M1_source_dt_limiter   = true
 M1_source_cfl_linear   = 0.25d0
 M1_source_cfl_fraction = 0.10d0
 M1_source_cfl_positive = 0.50d0
+M1_source_cfl_realizable = 0.99d0
 M1_source_dt_floor     = 0.0d0
+M1_source_realizable_floor_abs = 0.0d0
+M1_source_realizable_floor_rel = 1.0d-12
+M1_source_realizable_margin = 1.0d-8
 M1_source_dt_verbose   = 0
 ```
 
-The current explicit-test parameter file uses looser guardrails:
+The current explicit-test parameter file uses these guardrails:
 
 ```text
 M1_source_dt_limiter   = 1
-M1_source_cfl_linear   = 10.0d0
-M1_source_cfl_fraction = 5.0d0
-M1_source_cfl_positive = 2.0d0
+M1_source_cfl_linear   = 1.0d0
+M1_source_cfl_fraction = 1.0d0
+M1_source_cfl_positive = 0.99d0
+M1_source_cfl_realizable = 0.99d0
 M1_source_dt_floor     = 1.0d-99
+M1_source_realizable_floor_abs = 1.0d-12
+M1_source_realizable_floor_rel = 1.0d-12
+M1_source_realizable_margin = 1.0d-8
 M1_source_dt_verbose   = 1
 ```
 
@@ -149,7 +161,7 @@ timescale denominators.
 
 ## Candidate Timestep Bounds
 
-For each source vector and Jacobian, `source_dt_bound` computes three candidate
+For each source vector and Jacobian, `source_dt_bound` computes four candidate
 limits and returns their minimum:
 
 ```math
@@ -157,7 +169,8 @@ limits and returns their minimum:
 = \min\left(
 \Delta t_\mathrm{linear},
 \Delta t_\mathrm{fraction},
-\Delta t_\mathrm{positive}
+\Delta t_\mathrm{positive},
+\Delta t_\mathrm{realizable}
 \right).
 ```
 
@@ -323,9 +336,166 @@ The code computes this at
 and applies the parameter at
 [`src/M1/M1_source_timestep.F90#L216-L218`](../src/M1/M1_source_timestep.F90#L216-L218).
 
+### 4. `M1_source_cfl_realizable`
+
+This controls a CFL-like bound for the M1 realizability cone. The M1 closure
+requires
+
+```math
+E_g > 0,\qquad |F_g|/X \le E_g,
+```
+
+where `X` is the radial metric factor in GR and `X = 1` in Newtonian runs.
+Equivalently, both cone margins must be nonnegative:
+
+```math
+R_g^+ = E_g - F_g/X \ge 0,
+```
+
+```math
+R_g^- = E_g + F_g/X \ge 0.
+```
+
+For the local source update
+
+```math
+\frac{dE_g}{dt} = S_{E_g},\qquad
+\frac{dF_g}{dt} = S_{F_g},
+```
+
+the margin derivatives are
+
+```math
+\frac{dR_g^+}{dt} = S_{E_g} - S_{F_g}/X,
+```
+
+```math
+\frac{dR_g^-}{dt} = S_{E_g} + S_{F_g}/X.
+```
+
+The limiter first decides whether group `g` is active enough to matter for a
+global cone CFL. For one zone and species, define
+
+```math
+E_\mathrm{species} = \sum_g \max(E_g,0),
+```
+
+and
+
+```math
+E_\mathrm{active}
+=
+\max\left(
+\mathrm{M1\_source\_realizable\_floor\_abs},
+\mathrm{M1\_source\_realizable\_floor\_rel}\,
+E_\mathrm{species}
+\right).
+```
+
+The cone CFL is only applied to groups with
+
+```math
+E_g > E_\mathrm{active}.
+```
+
+Groups below this threshold are treated as floor-level radiation. They are not
+allowed to reduce the global timestep; any tiny cone violation is left for the
+local projection in `M1_implicitstep`.
+
+For active groups, the limiter also floors the cone-margin denominator:
+
+```math
+R_\mathrm{floor}
+=
+\max\left(
+f,\,
+\mathrm{M1\_source\_realizable\_margin}\,
+\max(E_g,E_\mathrm{active})
+\right),
+```
+
+where `f = max(M1_source_dt_floor, tiny)`. If either margin is decreasing, the
+limiter imposes
+
+```math
+\Delta t_\mathrm{realizable}
+\le
+\mathrm{M1\_source\_cfl\_realizable}
+\frac{\max(R_g^\pm,R_\mathrm{floor})}{-dR_g^\pm/dt}.
+```
+
+This is the constraint that directly prevents the explicit IES and
+energy-space advection source update from taking a realizable M1 state outside
+the flux cone. Unlike the final projection in `M1_implicitstep`, this acts
+before the update is taken by reducing the global timestep.
+
+Values less than `1` retain a buffer inside the cone. The default and current
+test value is
+
+```text
+M1_source_cfl_realizable = 0.99d0
+```
+
+which allows the source update to use at most 99% of the resolved cone margin.
+
+The extra floors prevent nearly empty or already nearly free-streaming bins
+from imposing a tiny global timestep just because `E_g` and `|F_g|/X` are both
+very small and nearly equal.
+
+## `M1_source_realizable_floor_abs`
+
+This is an absolute energy-density threshold for the cone CFL. If
+
+```math
+E_g \le E_\mathrm{active},
+```
+
+and `E_active` is set by this absolute floor, the group is ignored by the
+global realizability limiter. This should be used carefully because it is in
+GR1D's local radiation-energy units.
+
+The test restart currently uses
+
+```text
+M1_source_realizable_floor_abs = 1.0d-12
+```
+
+so the cone CFL does not chase floor-level radiation populations.
+
+The same absolute floor is also used to suppress `flux>en` warning messages
+from `M1_implicitstep` for floor-level bins. The projection back into the cone
+still happens; only the diagnostic is suppressed below this scale.
+
+## `M1_source_realizable_floor_rel`
+
+This is the relative active-bin threshold. It compares each group energy to the
+local species-integrated radiation energy:
+
+```math
+E_g >
+\mathrm{M1\_source\_realizable\_floor\_rel}
+\sum_h \max(E_h,0).
+```
+
+The default is
+
+```text
+M1_source_realizable_floor_rel = 1.0d-12
+```
+
+which only suppresses groups that are negligible compared with the local
+species radiation content.
+
+## `M1_source_realizable_margin`
+
+This is a relative floor on the cone-margin denominator. A value of `1.0d-8`
+means the global timestep limiter does not distinguish cone margins smaller
+than about `10^{-8} E_g`; those tiny residual corrections are handled locally
+by the post-step flux projection.
+
 ## `M1_source_dt_floor`
 
-`M1_source_dt_floor` sets the floor `f` used in the formulas above:
+`M1_source_dt_floor` sets the floor `f` used in the source-timescale formulas:
 
 ```math
 f =
@@ -343,6 +513,9 @@ It appears in three places:
 2. The fractional-update denominators.
 
 3. The positivity denominator.
+
+4. The absolute part of the realizability margin denominator,
+   `R_floor`.
 
 A small value such as `1.0d-99` means the limiter remains sensitive to tiny
 radiation populations. A larger value tells the limiter to ignore fractional
@@ -392,7 +565,7 @@ M1_source_dt_verbose > 0
 and the source limiter cuts below the spatial timestep, GR1D prints:
 
 ```text
-M1 source dt limiter: dt_spatial dt_source dt_ies dt_energycoupling kind zone species group
+M1 source dt limiter: dt_spatial dt_source dt_ies dt_energycoupling dt_realizable kind zone species group
 ```
 
 The printed timestep values are divided by `time_gf`, matching the usual
@@ -410,6 +583,7 @@ The diagnostic fields are stored for scalar output through:
 dt_m1_source
 dt_m1_ies
 dt_m1_energycoupling
+dt_m1_realizable
 M1_source_limiter_kind
 M1_source_limiter_zone
 M1_source_limiter_species
@@ -444,22 +618,31 @@ M1_source_cfl_positive
 Controls source-only radiation energy loss. It is positivity-preserving only
 for values less than or equal to about `1`.
 
+```text
+M1_source_cfl_realizable
+```
+
+Controls how much of the available M1 cone margin may be consumed by the
+explicit source update. This is the direct guard against `|F|/X > E`.
+
 For strict guardrails, use values like:
 
 ```text
 M1_source_cfl_linear   = 0.25d0
 M1_source_cfl_fraction = 0.10d0
 M1_source_cfl_positive = 0.50d0
+M1_source_cfl_realizable = 0.99d0
 ```
 
-For exploratory fully explicit runs where the row-sum and fractional bounds
-are known to be too conservative, looser values like the current test settings
-can be useful:
+For exploratory fully explicit runs where only the row-sum and fractional
+bounds are known to be too conservative, those two values can be loosened while
+keeping the positivity and cone guards strict:
 
 ```text
 M1_source_cfl_linear   = 10.0d0
 M1_source_cfl_fraction = 5.0d0
-M1_source_cfl_positive = 2.0d0
+M1_source_cfl_positive = 0.99d0
+M1_source_cfl_realizable = 0.99d0
 ```
 
 Those loose values should be interpreted as heuristic guardrails, not as a

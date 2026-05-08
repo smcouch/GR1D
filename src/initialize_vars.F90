@@ -60,10 +60,15 @@ subroutine initialize_vars
   M1_source_cfl_linear = 0.25d0
   M1_source_cfl_fraction = 0.10d0
   M1_source_cfl_positive = 0.50d0
+  M1_source_cfl_realizable = 0.99d0
   M1_source_dt_floor = 0.0d0
+  M1_source_realizable_floor_abs = 0.0d0
+  M1_source_realizable_floor_rel = 1.0d-12
+  M1_source_realizable_margin = 1.0d-8
   dt_m1_source = 1.0d99
   dt_m1_ies = 1.0d99
   dt_m1_energycoupling = 1.0d99
+  dt_m1_realizable = 1.0d99
   M1_source_limiter_kind = 0
   M1_source_limiter_zone = 0
   M1_source_limiter_species = 0

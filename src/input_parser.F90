@@ -196,8 +196,19 @@ subroutine input_parser
           call get_double_parameter('M1_source_cfl_fraction',M1_source_cfl_fraction)
      if (parameter_exists('M1_source_cfl_positive')) &
           call get_double_parameter('M1_source_cfl_positive',M1_source_cfl_positive)
+     if (parameter_exists('M1_source_cfl_realizable')) &
+          call get_double_parameter('M1_source_cfl_realizable',M1_source_cfl_realizable)
      if (parameter_exists('M1_source_dt_floor')) &
           call get_double_parameter('M1_source_dt_floor',M1_source_dt_floor)
+     if (parameter_exists('M1_source_realizable_floor_abs')) &
+          call get_double_parameter('M1_source_realizable_floor_abs', &
+          M1_source_realizable_floor_abs)
+     if (parameter_exists('M1_source_realizable_floor_rel')) &
+          call get_double_parameter('M1_source_realizable_floor_rel', &
+          M1_source_realizable_floor_rel)
+     if (parameter_exists('M1_source_realizable_margin')) &
+          call get_double_parameter('M1_source_realizable_margin', &
+          M1_source_realizable_margin)
      if (parameter_exists('M1_source_dt_verbose')) &
           call get_integer_parameter('M1_source_dt_verbose',M1_source_dt_verbose)
 

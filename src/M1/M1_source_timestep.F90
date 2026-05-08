@@ -1,6 +1,6 @@
 !-*-f90-*-
 subroutine M1_source_timestep_limit(dt_source,dt_ies,dt_energycoupling, &
-     limiter_kind,limiter_zone,limiter_species,limiter_group)
+     dt_realizable,limiter_kind,limiter_zone,limiter_species,limiter_group)
 
   use GR1D_module
   use nulibtable, only : nulibtable_inv_energies,nulibtable_energies, &
@@ -9,6 +9,7 @@ subroutine M1_source_timestep_limit(dt_source,dt_ies,dt_energycoupling, &
   implicit none
 
   real*8, intent(out) :: dt_source,dt_ies,dt_energycoupling
+  real*8, intent(out) :: dt_realizable
   integer, intent(out) :: limiter_kind,limiter_zone,limiter_species
   integer, intent(out) :: limiter_group
 
@@ -24,12 +25,13 @@ subroutine M1_source_timestep_limit(dt_source,dt_ies,dt_energycoupling, &
   real*8 :: A_ies(2*number_groups,2*number_groups)
   real*8 :: A_energy(2*number_groups,2*number_groups)
   real*8 :: A_total(2*number_groups,2*number_groups)
-  real*8 :: dt_local
+  real*8 :: dt_local,dt_realizable_local,oneX_local
   integer :: i,k,g,local_group
 
   dt_source = huge_dt
   dt_ies = huge_dt
   dt_energycoupling = huge_dt
+  dt_realizable = huge_dt
   limiter_kind = source_none
   limiter_zone = 0
   limiter_species = 0
@@ -49,6 +51,12 @@ subroutine M1_source_timestep_limit(dt_source,dt_ies,dt_energycoupling, &
 
   do k=ghosts1+1,M1_imaxradii
      do i=1,number_species_to_evolve
+        if (GR) then
+           oneX_local = X(k)
+        else
+           oneX_local = 1.0d0
+        endif
+
         do g=1,number_groups
            U(g) = q_M1(k,i,g,1)
            U(g+number_groups) = q_M1(k,i,g,2)
@@ -59,7 +67,8 @@ subroutine M1_source_timestep_limit(dt_source,dt_ies,dt_energycoupling, &
 
         if (include_Ielectron_exp) then
            call finite_difference_source(source_ies,k,i,U,S_ies,A_ies)
-           call source_dt_bound(S_ies,A_ies,U,dt_local,local_group)
+           call source_dt_bound(S_ies,A_ies,U,oneX_local,dt_local, &
+                dt_realizable_local,local_group)
            if (dt_local.lt.dt_ies) dt_ies = dt_local
            S_total = S_total + S_ies
            A_total = A_total + A_ies
@@ -68,19 +77,24 @@ subroutine M1_source_timestep_limit(dt_source,dt_ies,dt_energycoupling, &
         if (include_energycoupling_exp) then
            call finite_difference_source(source_energycoupling,k,i,U, &
                 S_energy,A_energy)
-           call source_dt_bound(S_energy,A_energy,U,dt_local,local_group)
+           call source_dt_bound(S_energy,A_energy,U,oneX_local,dt_local, &
+                dt_realizable_local,local_group)
            if (dt_local.lt.dt_energycoupling) dt_energycoupling = dt_local
            S_total = S_total + S_energy
            A_total = A_total + A_energy
         endif
 
         if (include_Ielectron_exp.and.include_energycoupling_exp) then
-           call source_dt_bound(S_total,A_total,U,dt_local,local_group)
+           call source_dt_bound(S_total,A_total,U,oneX_local,dt_local, &
+                dt_realizable_local,local_group)
         else if (include_Ielectron_exp) then
-           call source_dt_bound(S_total,A_total,U,dt_local,local_group)
+           call source_dt_bound(S_total,A_total,U,oneX_local,dt_local, &
+                dt_realizable_local,local_group)
         else
-           call source_dt_bound(S_total,A_total,U,dt_local,local_group)
+           call source_dt_bound(S_total,A_total,U,oneX_local,dt_local, &
+                dt_realizable_local,local_group)
         endif
+        if (dt_realizable_local.lt.dt_realizable) dt_realizable = dt_realizable_local
 
         if (dt_local.lt.dt_source) then
            dt_source = dt_local
@@ -154,24 +168,41 @@ contains
 
   end subroutine evaluate_source
 
-  subroutine source_dt_bound(S,A,U,dt_bound,bound_group)
+  subroutine source_dt_bound(S,A,U,oneX_local,dt_bound,dt_realizable_bound, &
+       bound_group)
 
     implicit none
     real*8, intent(in) :: S(2*number_groups)
     real*8, intent(in) :: A(2*number_groups,2*number_groups)
     real*8, intent(in) :: U(2*number_groups)
+    real*8, intent(in) :: oneX_local
     real*8, intent(out) :: dt_bound
+    real*8, intent(out) :: dt_realizable_bound
     integer, intent(out) :: bound_group
 
     real*8 :: lambda,theta,pi_pos,row_sum,scale,floor_value
+    real*8 :: rplus,rminus,drplusdt,drminusdt,realizable_rate
+    real*8 :: species_energy,active_floor,margin_floor
     real*8 :: candidate
-    integer :: row,col,g
+    integer :: row,col,g,lambda_group,theta_group,pi_group,realizable_group
 
     floor_value = max(M1_source_dt_floor,tiny)
     lambda = 0.0d0
     theta = 0.0d0
     pi_pos = 0.0d0
+    realizable_rate = 0.0d0
     bound_group = 1
+    lambda_group = 1
+    theta_group = 1
+    pi_group = 1
+    realizable_group = 1
+    species_energy = 0.0d0
+
+    do g=1,number_groups
+       species_energy = species_energy + max(U(g),0.0d0)
+    enddo
+    active_floor = max(0.0d0,M1_source_realizable_floor_abs, &
+         M1_source_realizable_floor_rel*species_energy)
 
     do row=1,2*number_groups
        row_sum = 0.0d0
@@ -181,9 +212,9 @@ contains
        if (row_sum.gt.lambda) then
           lambda = row_sum
           if (row.le.number_groups) then
-             bound_group = row
+             lambda_group = row
           else
-             bound_group = row-number_groups
+             lambda_group = row-number_groups
           endif
        endif
     enddo
@@ -195,27 +226,77 @@ contains
           g = row-number_groups
           scale = max(abs(U(row)),1.0d-3*abs(U(g)),floor_value)
        endif
-       theta = max(theta,abs(S(row))/scale)
+       if (abs(S(row))/scale.gt.theta) then
+          theta = abs(S(row))/scale
+          if (row.le.number_groups) then
+             theta_group = row
+          else
+             theta_group = g
+          endif
+       endif
     enddo
 
     do g=1,number_groups
        if (S(g).lt.0.0d0) then
-          pi_pos = max(pi_pos,-S(g)/max(U(g),floor_value))
+          if (-S(g)/max(U(g),floor_value).gt.pi_pos) then
+             pi_pos = -S(g)/max(U(g),floor_value)
+             pi_group = g
+          endif
+       endif
+
+       if (U(g).gt.active_floor) then
+          margin_floor = max(floor_value, &
+               M1_source_realizable_margin*max(U(g),active_floor))
+          rplus = U(g) - U(g+number_groups)/oneX_local
+          rminus = U(g) + U(g+number_groups)/oneX_local
+          drplusdt = S(g) - S(g+number_groups)/oneX_local
+          drminusdt = S(g) + S(g+number_groups)/oneX_local
+
+          if (drplusdt.lt.0.0d0) then
+             if (-drplusdt/max(rplus,margin_floor).gt.realizable_rate) then
+                realizable_rate = -drplusdt/max(rplus,margin_floor)
+                realizable_group = g
+             endif
+          endif
+          if (drminusdt.lt.0.0d0) then
+             if (-drminusdt/max(rminus,margin_floor).gt.realizable_rate) then
+                realizable_rate = -drminusdt/max(rminus,margin_floor)
+                realizable_group = g
+             endif
+          endif
        endif
     enddo
 
     dt_bound = huge_dt
+    dt_realizable_bound = huge_dt
     if (lambda.gt.0.0d0) then
        candidate = M1_source_cfl_linear/lambda
-       dt_bound = min(dt_bound,candidate)
+       if (candidate.lt.dt_bound) then
+          dt_bound = candidate
+          bound_group = lambda_group
+       endif
     endif
     if (theta.gt.0.0d0) then
        candidate = M1_source_cfl_fraction/theta
-       dt_bound = min(dt_bound,candidate)
+       if (candidate.lt.dt_bound) then
+          dt_bound = candidate
+          bound_group = theta_group
+       endif
     endif
     if (pi_pos.gt.0.0d0) then
        candidate = M1_source_cfl_positive/pi_pos
-       dt_bound = min(dt_bound,candidate)
+       if (candidate.lt.dt_bound) then
+          dt_bound = candidate
+          bound_group = pi_group
+       endif
+    endif
+    if (realizable_rate.gt.0.0d0) then
+       candidate = M1_source_cfl_realizable/realizable_rate
+       dt_realizable_bound = candidate
+       if (candidate.lt.dt_bound) then
+          dt_bound = candidate
+          bound_group = realizable_group
+       endif
     endif
 
   end subroutine source_dt_bound

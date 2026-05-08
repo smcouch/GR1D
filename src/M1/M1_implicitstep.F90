@@ -84,12 +84,13 @@ subroutine M1_implicitstep(dts,implicit_factor)
   logical :: problem_fixing,trouble_brewing,changedtwice
   integer :: problem_zone
   integer :: myloc(1)
-  real*8 :: maxRF
+  real*8 :: maxRF,realizable_warn_floor
 
   problem_fixing = .false.
   problem_zone = 0
   trouble_brewing = .false.
   changedtwice = .false.
+  realizable_warn_floor = max(tiny,M1_source_realizable_floor_abs)
 
   press_nu = 0.0d0
   energy_nu = 0.0d0
@@ -1270,7 +1271,12 @@ subroutine M1_implicitstep(dts,implicit_factor)
               if (nothappenyet1.and.k.lt.M1_imaxradii) then
                  nothappenyet1 = .false.
                  !this will happen a lot.  output is supressed to at most once per 10 time steps.
-                 if (mod(nt,10).eq.0) write(*,*) "warning: do_implicit_step: flux>en",i,j,k,nt,q_M1(k,i,j,2)/oneX,q_M1(k,i,j,1)
+                 if (mod(nt,10).eq.0.and. &
+                      q_M1(k,i,j,1).gt.realizable_warn_floor.and. &
+                      abs(q_M1(k,i,j,2)/oneX).gt. &
+                      (1.0d0+1.0d-8)*q_M1(k,i,j,1)) &
+                      write(*,*) "warning: do_implicit_step: flux>en",i,j,k, &
+                      nt,q_M1(k,i,j,2)/oneX,q_M1(k,i,j,1)
               endif
               !fix it
               q_M1(k,i,j,2) = oneX*q_M1(k,i,j,2) / abs((1.0d0+1.0d-8)*q_M1(k,i,j,2)/q_M1(k,i,j,1))

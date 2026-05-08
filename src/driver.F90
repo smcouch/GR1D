@@ -5,7 +5,7 @@ subroutine SetTimeStep
   implicit none
 
   real*8 sound,dtnew,dt_spatial
-  real*8 source_dt,source_dt_ies,source_dt_energy
+  real*8 source_dt,source_dt_ies,source_dt_energy,source_dt_realizable
   integer keytemp,eosflag,keyerr
   integer i
   integer source_kind,source_zone,source_species,source_group
@@ -73,18 +73,19 @@ subroutine SetTimeStep
 
   if (do_M1.and.M1_source_dt_limiter) then
      call M1_source_timestep_limit(source_dt,source_dt_ies,source_dt_energy, &
-          source_kind,source_zone,source_species,source_group)
+          source_dt_realizable,source_kind,source_zone,source_species,source_group)
      dt_m1_source = source_dt
      dt_m1_ies = source_dt_ies
      dt_m1_energycoupling = source_dt_energy
+     dt_m1_realizable = source_dt_realizable
      M1_source_limiter_kind = source_kind
      M1_source_limiter_zone = source_zone
      M1_source_limiter_species = source_species
      M1_source_limiter_group = source_group
      if (source_dt.lt.dt_spatial.and.M1_source_dt_verbose.gt.0) then
-        write(*,"(a,1P4E15.6,4I8)") "M1 source dt limiter: ", &
+        write(*,"(a,1P5E15.6,4I8)") "M1 source dt limiter: ", &
              dt_spatial/time_gf,source_dt/time_gf,dt_m1_ies/time_gf, &
-             dt_m1_energycoupling/time_gf, &
+             dt_m1_energycoupling/time_gf,dt_m1_realizable/time_gf, &
              source_kind,source_zone,source_species,source_group
      endif
      dt_spatial = min(dt_spatial,source_dt)
@@ -92,6 +93,7 @@ subroutine SetTimeStep
      dt_m1_source = 1.0d99
      dt_m1_ies = 1.0d99
      dt_m1_energycoupling = 1.0d99
+     dt_m1_realizable = 1.0d99
      M1_source_limiter_kind = 0
      M1_source_limiter_zone = 0
      M1_source_limiter_species = 0
