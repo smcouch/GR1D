@@ -192,6 +192,7 @@ module GR1D_module
   logical :: include_Ielectron_imp
   logical :: include_energycoupling_exp
   logical :: include_energycoupling_imp
+  logical :: M1_integrate_with_hydro_rk = .false.
 
   logical :: M1_source_dt_limiter = .true.
   integer :: M1_source_dt_verbose = 0
@@ -203,6 +204,7 @@ module GR1D_module
   real*8 :: M1_source_realizable_floor_abs = 0.0d0
   real*8 :: M1_source_realizable_floor_rel = 1.0d-12
   real*8 :: M1_source_realizable_margin = 1.0d-8
+  real*8 :: M1_source_dt_cache_safety = 0.8d0
   real*8 :: dt_m1_source = 1.0d99
   real*8 :: dt_m1_ies = 1.0d99
   real*8 :: dt_m1_energycoupling = 1.0d99
@@ -211,6 +213,15 @@ module GR1D_module
   integer :: M1_source_limiter_zone = 0
   integer :: M1_source_limiter_species = 0
   integer :: M1_source_limiter_group = 0
+  logical :: M1_source_dt_cache_valid = .false.
+  real*8 :: M1_source_dt_cache = 1.0d99
+  real*8 :: M1_source_dt_ies_cache = 1.0d99
+  real*8 :: M1_source_dt_energycoupling_cache = 1.0d99
+  real*8 :: M1_source_dt_realizable_cache = 1.0d99
+  integer :: M1_source_limiter_kind_cache = 0
+  integer :: M1_source_limiter_zone_cache = 0
+  integer :: M1_source_limiter_species_cache = 0
+  integer :: M1_source_limiter_group_cache = 0
 
   character*80 :: M1closure
   integer :: M1_testcase_number
@@ -379,9 +390,13 @@ module GR1D_module
   !from epannihil for
   !matter
   real*8,allocatable,save :: M1_source_dvdt(:)
+  real*8,allocatable,save :: M1_source_lambda_ies(:,:)
+  real*8,allocatable,save :: M1_source_lambda_energycoupling(:,:)
   real*8,allocatable,save :: M1_matter_source(:,:) !source terms
   !for matter
   !interaction
+  real*8,allocatable,save :: M1_hydro_source(:,:) !stage-local matter
+  !source rates for RK-coupled M1
   real*8,allocatable,save :: M1_moment_to_distro(:) !conversion factor
   real*8,allocatable,save :: M1_moment_to_distro_inverse(:) !inverse conversion factor
 

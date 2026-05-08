@@ -121,7 +121,10 @@ subroutine allocate_vars
   allocate(flux_M1_scatter(n1,number_species,number_groups,3)) !conserved variables
   allocate(q_M1_fluid(n1,number_species,number_groups,3)) !neutrino variables in the fluid frame
   allocate(M1_source_dvdt(n1))
+  allocate(M1_source_lambda_ies(n1,number_species))
+  allocate(M1_source_lambda_energycoupling(n1,number_species))
   allocate(M1_matter_source(n1,4)) !matter source terms
+  allocate(M1_hydro_source(n1,4)) !RK-stage matter source rates from M1
   allocate(M1_moment_to_distro(number_groups))
   allocate(M1_moment_to_distro_inverse(number_groups))
 

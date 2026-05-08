@@ -185,6 +185,10 @@ subroutine input_parser
      else
         stop "unknown value for energycoupling_evolution_exp"
      endif
+     if (parameter_exists('M1_integrate_with_hydro_rk')) then
+        call get_integer_parameter('M1_integrate_with_hydro_rk',tempint)
+        M1_integrate_with_hydro_rk = tempint.ne.0
+     endif
 
      if (parameter_exists('M1_source_dt_limiter')) then
         call get_integer_parameter('M1_source_dt_limiter',tempint)
@@ -209,6 +213,9 @@ subroutine input_parser
      if (parameter_exists('M1_source_realizable_margin')) &
           call get_double_parameter('M1_source_realizable_margin', &
           M1_source_realizable_margin)
+     if (parameter_exists('M1_source_dt_cache_safety')) &
+          call get_double_parameter('M1_source_dt_cache_safety', &
+          M1_source_dt_cache_safety)
      if (parameter_exists('M1_source_dt_verbose')) &
           call get_integer_parameter('M1_source_dt_verbose',M1_source_dt_verbose)
 

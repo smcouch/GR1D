@@ -31,6 +31,7 @@ M1_source_dt_floor
 M1_source_realizable_floor_abs
 M1_source_realizable_floor_rel
 M1_source_realizable_margin
+M1_source_dt_cache_safety
 M1_source_dt_verbose
 ```
 
@@ -46,6 +47,7 @@ M1_source_dt_floor     = 0.0d0
 M1_source_realizable_floor_abs = 0.0d0
 M1_source_realizable_floor_rel = 1.0d-12
 M1_source_realizable_margin = 1.0d-8
+M1_source_dt_cache_safety = 0.8d0
 M1_source_dt_verbose   = 0
 ```
 
@@ -61,6 +63,7 @@ M1_source_dt_floor     = 1.0d-99
 M1_source_realizable_floor_abs = 1.0d-12
 M1_source_realizable_floor_rel = 1.0d-12
 M1_source_realizable_margin = 1.0d-8
+M1_source_dt_cache_safety = 0.8d0
 M1_source_dt_verbose   = 1
 ```
 
@@ -105,8 +108,10 @@ This is implemented around
 The reported `dt_ies` and `dt_energycoupling` are useful diagnostics, but the
 actual source timestep is the minimum bound from the active combined update.
 
-Before evaluating these sources, the limiter updates the same supporting data
-used by the explicit M1 source calculation:
+On a normal timestep, `SetTimeStep` uses source limits cached by the previous
+accepted M1 explicit source update. On startup or after an invalid cache, the
+direct fallback limiter updates the same supporting data used by the explicit
+M1 source calculation:
 
 ```fortran
 if (include_Ielectron_exp) call M1_updateeas
@@ -117,51 +122,44 @@ call M1_closure
 See
 [`src/M1/M1_source_timestep.F90#L46-L48`](../src/M1/M1_source_timestep.F90#L46-L48).
 
-## Finite-Difference Jacobian
+## Cached Source Evaluation
 
-For a source vector `S(U)`, the limiter estimates the local Jacobian
-
-```math
-A_{mn} = \frac{\partial S_m}{\partial U_n}
-```
-
-by finite differences in
-[`finite_difference_source`](../src/M1/M1_source_timestep.F90#L103-L138).
-
-For component `n`, the perturbation size is
+The expensive source algebra is normally done only in
+[`M1_explicitterms`](../src/M1/M1_explicitterms.F90). The explicit IES and
+energy-coupling paths compute the source rates
 
 ```math
-h_n =
-10^{-6} \max\left(|U_n|, f\right),
+S_\mathrm{ies}, \qquad S_\mathrm{ec}
 ```
 
-where
+and local row-sum rate bounds
 
 ```math
-f = \max(\mathrm{M1\_source\_dt\_floor}, \mathrm{tiny}).
+\lambda_\mathrm{ies}, \qquad \lambda_\mathrm{ec}.
 ```
 
-For energy-density components close to the floor, the code uses a one-sided
-difference to avoid stepping the energy through the floor:
+Those values are reduced into a cached source timestep by
+[`M1_source_timestep_cache_update`](../src/M1/M1_source_timestep.F90). The next
+call to `SetTimeStep` consumes that cache instead of recomputing the source
+rates. Because the cached value is one accepted step old, the timestep used by
+the driver is
 
 ```math
-A_{mn} \approx
-\frac{S_m(U + h_n e_n) - S_m(U)}{h_n}.
+\Delta t_\mathrm{cached}
+=
+\mathrm{M1\_source\_dt\_cache\_safety}
+\,
+\Delta t_\mathrm{source,previous}.
 ```
 
-Otherwise it uses the centered difference
-
-```math
-A_{mn} \approx
-\frac{S_m(U + h_n e_n) - S_m(U - h_n e_n)}{2h_n}.
-```
-
-The floor therefore affects both numerical differentiation and later
-timescale denominators.
+`M1_source_dt_cache_safety = 1` means no extra cache safety factor; values below
+one are more conservative. If the cache is unavailable, the direct fallback in
+[`M1_source_timestep_limit`](../src/M1/M1_source_timestep.F90) computes the same
+kind of source rates and rate bounds immediately.
 
 ## Candidate Timestep Bounds
 
-For each source vector and Jacobian, `source_dt_bound` computes four candidate
+For each source vector and rate bound, `M1_source_dt_bound_from_lambda` computes four candidate
 limits and returns their minimum:
 
 ```math
@@ -175,12 +173,12 @@ limits and returns their minimum:
 ```
 
 The implementation is in
-[`source_dt_bound`](../src/M1/M1_source_timestep.F90#L157-L221).
+[`M1_source_dt_bound_from_lambda`](../src/M1/M1_source_timestep.F90).
 
 ### 1. `M1_source_cfl_linear`
 
-This controls a linearized row-sum bound. For each row of the finite-difference
-Jacobian,
+This controls a linearized row-sum bound. For each row of the local frozen
+source operator,
 
 ```math
 r_m = \sum_n |A_{mn}|,
@@ -502,15 +500,8 @@ f =
 \max(\mathrm{M1\_source\_dt\_floor}, \mathrm{tiny}).
 ```
 
-It appears in three places:
-
-1. The finite-difference perturbation scale:
-
-   ```math
-   h_n = 10^{-6}\max(|U_n|, f).
-   ```
-
-2. The fractional-update denominators.
+It appears in the fractional-update, positivity, and realizability
+denominators.
 
 3. The positivity denominator.
 
@@ -601,8 +592,8 @@ The three CFL-like parameters have different meanings:
 M1_source_cfl_linear
 ```
 
-Controls a row-sum Jacobian timescale. It is closest to a linear stability
-estimate, but it is conservative and not eigenvalue-sharp.
+Controls a row-sum source-operator timescale. It is closest to a linear
+stability estimate, but it is conservative and not eigenvalue-sharp.
 
 ```text
 M1_source_cfl_fraction
@@ -650,10 +641,10 @@ mathematical proof of explicit stability.
 
 ## Limitations
 
-The current limiter is deliberately local in radius and species. It estimates
-the explicit source Jacobian for each `(zone, species)` block, but it does not
-include spatial transport, hydrodynamic feedback, or the nonlinear behavior of
-the full coupled timestep.
+The current limiter is deliberately local in radius and species. It estimates a
+row-sum bound for each explicit source block, but it does not include spatial
+transport, hydrodynamic feedback, or the nonlinear behavior of the full coupled
+timestep.
 
 The row-sum bound satisfies
 
@@ -663,6 +654,6 @@ The row-sum bound satisfies
 
 but it does not check whether the eigenvalues of `A` lie inside the actual
 stability region of the time integrator. A sharper limiter would compute or
-estimate the eigenvalues of the local source Jacobian and apply the explicit
+estimate the eigenvalues of the local source operator and apply the explicit
 method's stability region directly, using the positivity and fractional-update
 checks as additional diagnostics.

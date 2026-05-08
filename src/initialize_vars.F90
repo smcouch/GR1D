@@ -55,6 +55,7 @@ subroutine initialize_vars
   include_Ielectron_imp = .false.
   include_energycoupling_exp = .false.
   include_energycoupling_imp = .false.
+  M1_integrate_with_hydro_rk = .false.
   M1_source_dt_limiter = .true.
   M1_source_dt_verbose = 0
   M1_source_cfl_linear = 0.25d0
@@ -65,6 +66,7 @@ subroutine initialize_vars
   M1_source_realizable_floor_abs = 0.0d0
   M1_source_realizable_floor_rel = 1.0d-12
   M1_source_realizable_margin = 1.0d-8
+  M1_source_dt_cache_safety = 0.8d0
   dt_m1_source = 1.0d99
   dt_m1_ies = 1.0d99
   dt_m1_energycoupling = 1.0d99
@@ -73,7 +75,19 @@ subroutine initialize_vars
   M1_source_limiter_zone = 0
   M1_source_limiter_species = 0
   M1_source_limiter_group = 0
+  M1_source_dt_cache_valid = .false.
+  M1_source_dt_cache = 1.0d99
+  M1_source_dt_ies_cache = 1.0d99
+  M1_source_dt_energycoupling_cache = 1.0d99
+  M1_source_dt_realizable_cache = 1.0d99
+  M1_source_limiter_kind_cache = 0
+  M1_source_limiter_zone_cache = 0
+  M1_source_limiter_species_cache = 0
+  M1_source_limiter_group_cache = 0
   M1_source_dvdt(:) = 0.0d0
+  M1_source_lambda_ies(:,:) = 0.0d0
+  M1_source_lambda_energycoupling(:,:) = 0.0d0
+  M1_hydro_source(:,:) = 0.0d0
   opacity_table = ""
   M1closure = 'ME'
   M1_testcase_number = 0
@@ -243,6 +257,7 @@ subroutine initialize_arrays
   q_M1_fluid(:,:,:,1) = 1.0d-90
   q_M1_fluid(:,:,:,2) = 1.0d-110
   M1_matter_source(:,:) = 0.0d0
+  M1_hydro_source(:,:) = 0.0d0
   M1_moment_to_distro(:) = 0.0d0
   M1_moment_to_distro_inverse(:) = 0.0d0
 
@@ -271,6 +286,7 @@ subroutine initialize_arrays
   q_M1_fluid(:,:,:,1) = 1.0d-90
   q_M1_fluid(:,:,:,2) = 1.0d-110
   M1_matter_source(:,:) = 0.0d0
+  M1_hydro_source(:,:) = 0.0d0
   M1_moment_to_distro(:) = 0.0d0
   M1_moment_to_distro_inverse(:) = 0.0d0
 

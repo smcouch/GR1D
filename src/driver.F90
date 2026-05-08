@@ -9,7 +9,7 @@ subroutine SetTimeStep
   integer keytemp,eosflag,keyerr
   integer i
   integer source_kind,source_zone,source_species,source_group
-  logical nan,inf
+  logical nan,inf,source_cache_hit
   
   if (GR) then
      call findnaninf(v,n1,nan,inf)
@@ -72,8 +72,14 @@ subroutine SetTimeStep
   dt_spatial = dt_reduction_factor*cffac*dtnew
 
   if (do_M1.and.M1_source_dt_limiter) then
-     call M1_source_timestep_limit(source_dt,source_dt_ies,source_dt_energy, &
-          source_dt_realizable,source_kind,source_zone,source_species,source_group)
+     call M1_source_timestep_cache_get(source_dt,source_dt_ies, &
+          source_dt_energy,source_dt_realizable,source_kind,source_zone, &
+          source_species,source_group,source_cache_hit)
+     if (.not.source_cache_hit) then
+        call M1_source_timestep_limit(source_dt,source_dt_ies, &
+             source_dt_energy,source_dt_realizable,source_kind,source_zone, &
+             source_species,source_group)
+     endif
      dt_m1_source = source_dt
      dt_m1_ies = source_dt_ies
      dt_m1_energycoupling = source_dt_energy
