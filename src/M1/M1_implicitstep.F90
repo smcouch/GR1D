@@ -75,6 +75,10 @@ subroutine M1_implicitstep(dts,implicit_factor)
   integer :: i,j,k,ii,jj,count,j_prime
   integer :: location(1)
   integer :: info
+  integer :: solver_mode
+  integer, parameter :: solver_local_2x2 = 1
+  integer, parameter :: solver_block_tridiag_2x2 = 2
+  integer, parameter :: solver_dense_lapack = 3
 
   logical :: nothappenyet1,nothappenyet2,stillneedconvergence
   logical :: problem_fixing,trouble_brewing,changedtwice
@@ -110,7 +114,7 @@ subroutine M1_implicitstep(dts,implicit_factor)
   !$OMP interface_distroj,xi,FL,dFLdx,calculate_enext,FR,dFRdx,inverse,det,old_RF, &
   !$OMP new_NL_jacobian,new_RF,old_jacobian,oldx,myloc,problem_fixing,problem_zone, &
   !$OMP maxRF,Sr,Stnalpha,Stnum,oneM1en,oneM1flux,oneeddy,Stzone,Srzone,sign_one,pivot, &
-  !$OMP info,trouble_brewing,changedtwice,species_factor,ispecies_factor)
+  !$OMP info,trouble_brewing,changedtwice,species_factor,ispecies_factor,solver_mode)
   do k=ghosts1+1,M1_imaxradii
      do i=1,number_species_to_evolve
         
@@ -1010,71 +1014,60 @@ subroutine M1_implicitstep(dts,implicit_factor)
 
            enddo
 
-           !precondition assuming the dominant terms on the diagonals
-           inverse = 0.0d0
-           do j=1,number_groups
-              det = NL_jacobian(j,j)*NL_jacobian(j+number_groups,j+number_groups) - &                        
-                   NL_jacobian(j,j+number_groups)*NL_jacobian(j+number_groups,j)
-              
-              inverse(j,j) = NL_jacobian(j+number_groups,j+number_groups)/det
-              inverse(j+number_groups,j+number_groups) = NL_jacobian(j,j)/det
-              inverse(j,j+number_groups) = -NL_jacobian(j,j+number_groups)/det
-              inverse(j+number_groups,j) = -NL_jacobian(j+number_groups,j)/det
-           enddo
+           old_jacobian = NL_jacobian
+           old_RF = RF
 
-           !if things are implicit beyond E and F coupling in the same
-           !group, then must use the full formalism, otherwise, do the
-           !simple way, this can make a big difference if number of
-           !groups is large
-           new_NL_jacobian = 0.0d0
-           
-           if (include_Ielectron_imp.or.include_energycoupling_imp.or.include_epannihil_kernels) then
+           oldx = NLsolve_x
+           !RF and NL-jacobian setup, now invert to get dx.
+           !Use the least expensive exact linear solve for the active
+           !implicit coupling structure.
+           if (include_Ielectron_imp.or.include_epannihil_kernels) then
+              solver_mode = solver_dense_lapack
+
+              !precondition assuming the dominant terms on the diagonals
+              inverse = 0.0d0
+              do j=1,number_groups
+                 det = NL_jacobian(j,j)*NL_jacobian(j+number_groups,j+number_groups) - &
+                      NL_jacobian(j,j+number_groups)*NL_jacobian(j+number_groups,j)
+                 call check_2x2_det(det,solver_mode,k,i,j,nt)
+
+                 inverse(j,j) = NL_jacobian(j+number_groups,j+number_groups)/det
+                 inverse(j+number_groups,j+number_groups) = NL_jacobian(j,j)/det
+                 inverse(j,j+number_groups) = -NL_jacobian(j,j+number_groups)/det
+                 inverse(j+number_groups,j) = -NL_jacobian(j+number_groups,j)/det
+              enddo
+
+              new_NL_jacobian = 0.0d0
               do j=1,2*number_groups
                  do j_prime=1,2*number_groups
                     new_NL_jacobian(j,j_prime) = sum(inverse(j,:)*NL_jacobian(:,j_prime))
                  enddo
                  new_RF(j) = sum(inverse(j,:)*RF(:))
               enddo
-           else
-              do j=1,number_groups
-                 new_NL_jacobian(j,j) = inverse(j,j)*NL_jacobian(j,j) + &
-                      inverse(j,j+number_groups)*NL_jacobian(j+number_groups,j)
-                 new_NL_jacobian(j,j+number_groups) = inverse(j,j)*NL_jacobian(j,j+number_groups) + &
-                      inverse(j,j+number_groups)*NL_jacobian(j+number_groups,j+number_groups)
 
-                 new_NL_jacobian(j+number_groups,j) = inverse(j+number_groups,j)*NL_jacobian(j,j) + &
-                      inverse(j+number_groups,j+number_groups)*NL_jacobian(j+number_groups,j)
-                 new_NL_jacobian(j+number_groups,j+number_groups) = &
-                      inverse(j+number_groups,j)*NL_jacobian(j,j+number_groups) + &
-                      inverse(j+number_groups,j+number_groups)*NL_jacobian(j+number_groups,j+number_groups)
-
-                 new_RF(j) = inverse(j,j)*RF(j)+inverse(j,j+number_groups)*RF(j+number_groups)
-                 new_RF(j+number_groups) = inverse(j+number_groups,j)*RF(j) + &
-                      inverse(j+number_groups,j+number_groups)*RF(j+number_groups)
-              enddo
-           endif
-
-           old_jacobian = NL_jacobian
-           old_RF = RF
-           NL_jacobian = new_NL_jacobian
-           RF = new_RF
-
-           oldx = NLsolve_x
-           !RF and NL-jacobian setup, now invert to get dx
-           
+              NL_jacobian = new_NL_jacobian
+              RF = new_RF
 #if HAVE_LAPACK
-           RF = -RF
-           call dgesv(2*number_groups,1,NL_jacobian,2*number_groups,pivot,RF,2*number_groups,info)
+              RF = -RF
+              call dgesv(2*number_groups,1,NL_jacobian,2*number_groups,pivot,RF,2*number_groups,info)
+              if (info.ne.0) then
+                 write(*,*) "M1_implicitstep: dgesv failed",info,k,i,nt
+                 stop "M1_implicitstep: dgesv failed"
+              endif
 #else
-           stop "You need to have matrix inversion software" 
+              stop "You need LAPACK for implicit IES or pair-kernel M1 solves"
 #endif
+           else if (include_energycoupling_imp) then
+              solver_mode = solver_block_tridiag_2x2
+              call solve_block_tridiag_2x2(NL_jacobian,RF,k,i,nt)
+           else
+              solver_mode = solver_local_2x2
+              call solve_local_2x2(NL_jacobian,RF,k,i,nt)
+           endif
 
            if (isnan(sum(RF))) then
               write(*,*) k,i,nt
-              write(*,*) NL_jacobian
-              write(*,*) 
-              write(*,*) new_NL_jacobian
-              write(*,*)
+              write(*,*) "solver mode:", solver_mode
               write(*,*) old_jacobian
               write(*,*)
               write(*,*) oldx
@@ -1082,8 +1075,12 @@ subroutine M1_implicitstep(dts,implicit_factor)
               write(*,*) count, "RF:", RF
               write(*,*) 
               write(*,*) count, "old RF:",old_RF
-              write(*,*) 
-              write(*,*) count, "old RF, post pre:",new_RF
+              if (solver_mode.eq.solver_dense_lapack) then
+                 write(*,*)
+                 write(*,*) count, "preconditioned Jacobian:",NL_jacobian
+                 write(*,*)
+                 write(*,*) count, "old RF, post pre:",new_RF
+              endif
               write(*,*) 
               write(*,*) count, "NL:", NLsolve_x!+RF                 
               stop
@@ -1099,8 +1096,13 @@ subroutine M1_implicitstep(dts,implicit_factor)
               endif
               if (problem_fixing) then
                  write(*,*) "problem zone ", problem_zone,k,i,nt
-                 write(*,*) "a = ",new_NL_jacobian(problem_zone,:)
-                 write(*,*) "c = ",new_NL_jacobian(problem_zone+number_groups,:)
+                 if (solver_mode.eq.solver_dense_lapack) then
+                    write(*,*) "a = ",new_NL_jacobian(problem_zone,:)
+                    write(*,*) "c = ",new_NL_jacobian(problem_zone+number_groups,:)
+                 else
+                    write(*,*) "a = ",old_jacobian(problem_zone,:)
+                    write(*,*) "c = ",old_jacobian(problem_zone+number_groups,:)
+                 endif
                  write(*,*) "original RF(PZ) = ",old_RF(problem_zone)
                  write(*,*) "original RF(PZ+ng) = ",old_RF(problem_zone+number_groups)
                  write(*,*) "explicit en flux, B,C,D", B_M1(k,i,problem_zone,1), &
@@ -1111,8 +1113,13 @@ subroutine M1_implicitstep(dts,implicit_factor)
                       C_M1(k,i,problem_zone,2),D_M1(k,i,problem_zone,2), &
                       B_M1(k,i,problem_zone,2)+C_M1(k,i,problem_zone,2)+ &
                       D_M1(k,i,problem_zone,2)
-                 write(*,*) "Se = ",new_RF(problem_zone)
-                 write(*,*) "Sf = ",new_RF(problem_zone+number_groups)
+                 if (solver_mode.eq.solver_dense_lapack) then
+                    write(*,*) "Se = ",new_RF(problem_zone)
+                    write(*,*) "Sf = ",new_RF(problem_zone+number_groups)
+                 else
+                    write(*,*) "Se = ",RF(problem_zone)
+                    write(*,*) "Sf = ",RF(problem_zone+number_groups)
+                 endif
                  
                  write(*,*) oldx(problem_zone),oldx(problem_zone+number_groups)
                  write(*,*) NLsolve_x(problem_zone), &
@@ -1339,10 +1346,10 @@ subroutine M1_implicitstep(dts,implicit_factor)
            press_nu(k) = press_nu(k) + oneeddy*oneM1en*4.0d0*pi*invX2**2
            energy_nu(k) = energy_nu(k) + oneM1en*4.0d0*pi
            mom_nu(k) = mom_nu(k) + oneM1flux*4.0d0*pi
-           !$OMP END CRITICAL        
+           !$OMP END CRITICAL
 
         enddo
-           
+
         !$OMP CRITICAL
         !momentum term, units of reduced(energy/cm^2/s^2/srad)?
         !Shibata 7.7, kinda, there variable is slight different
@@ -1356,5 +1363,153 @@ subroutine M1_implicitstep(dts,implicit_factor)
      enddo
   enddo
   !$OMP END PARALLEL DO! end do
+
+contains
+
+  subroutine solve_local_2x2(matrix,rhs,zone_index,species_index,timestep)
+    implicit none
+
+    real*8, intent(in) :: matrix(2*number_groups,2*number_groups)
+    real*8, intent(inout) :: rhs(2*number_groups)
+    integer, intent(in) :: zone_index,species_index,timestep
+
+    integer :: group_index
+    real*8 :: block(2,2),inverse_block(2,2),rhs_pair(2),delta_pair(2)
+
+    do group_index=1,number_groups
+       block(1,1) = matrix(group_index,group_index)
+       block(1,2) = matrix(group_index,group_index+number_groups)
+       block(2,1) = matrix(group_index+number_groups,group_index)
+       block(2,2) = matrix(group_index+number_groups,group_index+number_groups)
+
+       rhs_pair(1) = -rhs(group_index)
+       rhs_pair(2) = -rhs(group_index+number_groups)
+
+       call invert_2x2(block,inverse_block,solver_local_2x2,zone_index, &
+            species_index,group_index,timestep)
+       delta_pair = matmul(inverse_block,rhs_pair)
+
+       rhs(group_index) = delta_pair(1)
+       rhs(group_index+number_groups) = delta_pair(2)
+    enddo
+  end subroutine solve_local_2x2
+
+  subroutine solve_block_tridiag_2x2(matrix,rhs,zone_index,species_index,timestep)
+    implicit none
+
+    real*8, intent(in) :: matrix(2*number_groups,2*number_groups)
+    real*8, intent(inout) :: rhs(2*number_groups)
+    integer, intent(in) :: zone_index,species_index,timestep
+
+    integer :: group_index
+    real*8 :: lower(2,2,number_groups),diag(2,2,number_groups)
+    real*8 :: upper(2,2,number_groups),cprime(2,2,number_groups)
+    real*8 :: dprime(2,number_groups),rhs_block(2,number_groups)
+    real*8 :: solution(2,number_groups),denom(2,2),rhs_eff(2)
+    real*8 :: inverse_block(2,2)
+
+    lower = 0.0d0
+    diag = 0.0d0
+    upper = 0.0d0
+    cprime = 0.0d0
+    dprime = 0.0d0
+    rhs_block = 0.0d0
+    solution = 0.0d0
+
+    do group_index=1,number_groups
+       diag(1,1,group_index) = matrix(group_index,group_index)
+       diag(1,2,group_index) = matrix(group_index,group_index+number_groups)
+       diag(2,1,group_index) = matrix(group_index+number_groups,group_index)
+       diag(2,2,group_index) = matrix(group_index+number_groups,group_index+number_groups)
+
+       if (group_index.gt.1) then
+          lower(1,1,group_index) = matrix(group_index,group_index-1)
+          lower(1,2,group_index) = matrix(group_index,group_index-1+number_groups)
+          lower(2,1,group_index) = matrix(group_index+number_groups,group_index-1)
+          lower(2,2,group_index) = matrix(group_index+number_groups,group_index-1+number_groups)
+       endif
+
+       if (group_index.lt.number_groups) then
+          upper(1,1,group_index) = matrix(group_index,group_index+1)
+          upper(1,2,group_index) = matrix(group_index,group_index+1+number_groups)
+          upper(2,1,group_index) = matrix(group_index+number_groups,group_index+1)
+          upper(2,2,group_index) = matrix(group_index+number_groups,group_index+1+number_groups)
+       endif
+
+       rhs_block(1,group_index) = -rhs(group_index)
+       rhs_block(2,group_index) = -rhs(group_index+number_groups)
+    enddo
+
+    call invert_2x2(diag(:,:,1),inverse_block,solver_block_tridiag_2x2, &
+         zone_index,species_index,1,timestep)
+    cprime(:,:,1) = matmul(inverse_block,upper(:,:,1))
+    dprime(:,1) = matmul(inverse_block,rhs_block(:,1))
+
+    do group_index=2,number_groups
+       denom = diag(:,:,group_index) - matmul(lower(:,:,group_index), &
+            cprime(:,:,group_index-1))
+       rhs_eff = rhs_block(:,group_index) - matmul(lower(:,:,group_index), &
+            dprime(:,group_index-1))
+
+       call invert_2x2(denom,inverse_block,solver_block_tridiag_2x2, &
+            zone_index,species_index,group_index,timestep)
+       if (group_index.lt.number_groups) then
+          cprime(:,:,group_index) = matmul(inverse_block,upper(:,:,group_index))
+       else
+          cprime(:,:,group_index) = 0.0d0
+       endif
+       dprime(:,group_index) = matmul(inverse_block,rhs_eff)
+    enddo
+
+    solution(:,number_groups) = dprime(:,number_groups)
+    do group_index=number_groups-1,1,-1
+       solution(:,group_index) = dprime(:,group_index) - &
+            matmul(cprime(:,:,group_index),solution(:,group_index+1))
+    enddo
+
+    do group_index=1,number_groups
+       rhs(group_index) = solution(1,group_index)
+       rhs(group_index+number_groups) = solution(2,group_index)
+    enddo
+  end subroutine solve_block_tridiag_2x2
+
+  subroutine invert_2x2(block,inverse_block,solver_mode_in,zone_index, &
+       species_index,group_index,timestep)
+    implicit none
+
+    real*8, intent(in) :: block(2,2)
+    real*8, intent(out) :: inverse_block(2,2)
+    integer, intent(in) :: solver_mode_in,zone_index,species_index
+    integer, intent(in) :: group_index,timestep
+
+    real*8 :: determinant
+
+    determinant = block(1,1)*block(2,2) - block(1,2)*block(2,1)
+    call check_2x2_det(determinant,solver_mode_in,zone_index,species_index, &
+         group_index,timestep)
+
+    inverse_block(1,1) = block(2,2)/determinant
+    inverse_block(1,2) = -block(1,2)/determinant
+    inverse_block(2,1) = -block(2,1)/determinant
+    inverse_block(2,2) = block(1,1)/determinant
+  end subroutine invert_2x2
+
+  subroutine check_2x2_det(determinant,solver_mode_in,zone_index, &
+       species_index,group_index,timestep)
+    implicit none
+
+    real*8, intent(in) :: determinant
+    integer, intent(in) :: solver_mode_in,zone_index,species_index
+    integer, intent(in) :: group_index,timestep
+
+    if (isnan(determinant) .or. abs(determinant) .le. 1.0d-300) then
+       write(*,*) "M1_implicitstep: singular optimized solver block"
+       write(*,*) "solver mode:",solver_mode_in
+       write(*,*) "zone/species/group/timestep:",zone_index,species_index, &
+            group_index,timestep
+       write(*,*) "determinant:",determinant
+       stop "M1_implicitstep: singular optimized solver block"
+    endif
+  end subroutine check_2x2_det
 
 end subroutine M1_implicitstep
